@@ -1,31 +1,103 @@
 ```html
 <!DOCTYPE html>
 <html lang="ar">
+
 <head>
+
 <meta charset="UTF-8">
+
 <title>قارئ باركود الأدوية</title>
 
 <script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
 
 <style>
+
 body{
-font-family: Arial;
+font-family:Tahoma;
+background:#eef2f7;
 text-align:center;
-background:#f4f4f4;
+}
+
+h2{
+color:#2c3e50;
 }
 
 #scanner{
+
 width:500px;
+height:300px;
 margin:auto;
-border:3px solid black;
+
+border-radius:10px;
+
+border:4px solid #34495e;
+
+overflow:hidden;
+
+}
+
+button{
+
+padding:10px 20px;
+
+margin:10px;
+
+border:none;
+
+background:#3498db;
+
+color:white;
+
+font-size:16px;
+
+border-radius:5px;
+
+cursor:pointer;
+
+}
+
+button:hover{
+
+background:#2980b9;
+
 }
 
 #result{
-font-size:25px;
-margin-top:20px;
-color:green;
+
+font-size:26px;
+
+color:#27ae60;
+
+margin-top:15px;
+
 font-weight:bold;
+
 }
+
+#history{
+
+width:400px;
+
+margin:auto;
+
+background:white;
+
+padding:10px;
+
+border-radius:10px;
+
+box-shadow:0 0 10px rgba(0,0,0,.1);
+
+}
+
+.item{
+
+padding:5px;
+
+border-bottom:1px solid #ddd;
+
+}
+
 </style>
 
 </head>
@@ -36,54 +108,129 @@ font-weight:bold;
 
 <div id="scanner"></div>
 
-<div id="result">لم يتم قراءة باركود بعد</div>
+<div id="result">
 
-<button onclick="startScanner()">تشغيل الكاميرا</button>
+بانتظار القراءة
+
+</div>
+
+<button onclick="startScanner()">
+
+تشغيل
+
+</button>
+
+<button onclick="stopScanner()">
+
+إيقاف
+
+</button>
+
+<h3>
+
+سجل القراءات
+
+</h3>
+
+<div id="history">
+
+</div>
+
+<audio id="beep">
+
+<source src="https://www.soundjay.com/beep/beep-07.mp3">
+
+</audio>
 
 <script>
+
+let lastCode="";
 
 function startScanner(){
 
 Quagga.init({
 
-inputStream : {
-name : "Live",
-type : "LiveStream",
-target: document.querySelector('#scanner'),
-constraints: {
-facingMode: "environment"
+inputStream:{
+
+name:"Live",
+
+type:"LiveStream",
+
+target:document.querySelector('#scanner'),
+
+constraints:{
+
+facingMode:"environment"
+
 }
+
 },
 
-decoder : {
-readers : [
-"code_128_reader",
-"ean_reader",
-"ean_8_reader",
-"code_39_reader",
-"upc_reader"
-]
-}
+decoder:{
 
-}, function(err){
+readers:[
+
+"ean_reader",
+
+"ean_8_reader",
+
+"code_128_reader",
+
+"upc_reader"
+
+]
+
+},
+
+locate:true
+
+},
+
+function(err){
 
 if(err){
+
 console.log(err);
+
 return;
+
 }
 
 Quagga.start();
 
 });
 
-Quagga.onDetected(function(data){
+}
 
-document.getElementById("result").innerHTML =
-"Barcode : " + data.codeResult.code;
+function stopScanner(){
 
-});
+Quagga.stop();
 
 }
+
+Quagga.onDetected(function(data){
+
+let code=data.codeResult.code;
+
+if(code!==lastCode){
+
+lastCode=code;
+
+document.getElementById("result").innerHTML=code;
+
+document.getElementById("beep").play();
+
+let div=document.createElement("div");
+
+div.className="item";
+
+div.innerHTML=code;
+
+document.getElementById("history").prepend(div);
+
+}
+
+});
 
 </script>
 
