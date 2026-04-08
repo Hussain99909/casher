@@ -498,21 +498,32 @@
             }
         }
         
-        // --- إعدادات الكاميرا المستقرة (مأخوذة من 24) ---
+        // --- إعدادات الكاميرا المستقرة والمركزة على الباركود الخطي ---
         let html5QrCode = null;
 
         document.getElementById('start-cam').addEventListener('click', () => {
             document.getElementById('camera-modal').style.display = 'flex';
             
             html5QrCode = new Html5Qrcode("reader");
-            // إعدادات المسح: صندوق بحجم مناسب للباركود
-            const config = { fps: 10, qrbox: { width: 250, height: 100 } };
+            
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 250, height: 100 },
+                // تحديد أنواع الباركود الخطي الخاص بالأدوية فقط لزيادة السرعة
+                formatsToSupport: [ 
+                    Html5QrcodeSupportedFormats.EAN_13, 
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.UPC_A, 
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39
+                ]
+            };
             
             html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                if (navigator.vibrate) navigator.vibrate(200); // اهتزاز عند النجاح
+                if (navigator.vibrate) navigator.vibrate(200); 
                 stopCamera();
-                searchInput.value = decodedText; // وضع الباركود في مستطيل البحث
-                searchInput.dispatchEvent(new Event('input')); // تشغيل البحث وتحديث البطاقات
+                searchInput.value = decodedText; 
+                searchInput.dispatchEvent(new Event('input')); 
             }).catch(err => {
                 alert("يرجى منح صلاحية الكاميرا للمتصفح.");
                 document.getElementById('camera-modal').style.display = 'none';
