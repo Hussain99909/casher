@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MSL Mobile - التعديل الشامل</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MSL Mobile">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -23,12 +29,15 @@
             margin: 0; padding: 0;
             background-color: var(--bg-main);
             color: var(--text-dark);
+            /* منع السحب للتحديث في الآيفون لجعله يبدو كتطبيق حقيقي */
+            overscroll-behavior-y: none; 
         }
         .header {
             background-color: var(--primary-blue);
             color: white;
             text-align: center;
-            padding: 15px;
+            /* إضافة مساحة علوية في الآيفون لتجنب تداخل النوتش (Notch) */
+            padding: calc(15px + env(safe-area-inset-top)) 15px 15px;
             font-size: 1.1rem;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -83,7 +92,7 @@
             border: 2px solid var(--primary-blue);
             position: relative;
             background: #000;
-            max-height: 320px; /* منع الكاميرا من تغطية الشاشة بالكامل */
+            max-height: 320px;
         }
         
         #native-video-container {
@@ -101,16 +110,16 @@
             display: block;
         }
         
-        /* المستطيل الوهمي للمسح (مخصص للباركود الخطي) */
+        /* المستطيل الوهمي للمسح */
         .scanner-guide {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 75%; /* مستطيل عريض */
-            height: 110px; /* ارتفاع قصير */
+            width: 75%;
+            height: 110px;
             border: 3px solid rgba(25, 135, 84, 0.9);
             border-radius: 10px;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55); /* تعتيم ما حول المستطيل */
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
             pointer-events: none;
             z-index: 5;
         }
@@ -208,7 +217,15 @@
             transform: translateX(-50%); opacity: 0; transition: 0.3s;
         }
         #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
-        #status-bar { font-size: 0.75rem; text-align: center; padding: 5px; background: #e9ecef; }
+        
+        /* تعديل الشريط السفلي لتجنب النوتش السفلي للآيفون */
+        #status-bar { 
+            font-size: 0.75rem; 
+            text-align: center; 
+            padding: 5px; 
+            background: #e9ecef; 
+            padding-bottom: calc(5px + env(safe-area-inset-bottom));
+        }
     </style>
 </head>
 <body>
@@ -514,7 +531,6 @@
         document.getElementById('start-cam').addEventListener('click', async () => {
             document.getElementById('reader-wrapper').style.display = 'block';
 
-            // دقة الكاميرا لتوضيح الباركود
             const videoConstraints = {
                 facingMode: 'environment',
                 width: { ideal: 1280 },
@@ -562,7 +578,6 @@
             }
         });
 
-        // دالة مكتبة html5-qrcode البديلة (مع المستطيل المخصص)
         function useHtml5QrCodeFallback() {
             readerDiv.style.display = 'block';
             nativeContainer.style.display = 'none';
@@ -571,7 +586,7 @@
             
             const config = { 
                 fps: 15, 
-                qrbox: { width: 260, height: 110 }, // تحديد المستطيل العرضي للأدوية
+                qrbox: { width: 260, height: 110 }, 
                 formatsToSupport: [ 
                     Html5QrcodeSupportedFormats.EAN_13,
                     Html5QrcodeSupportedFormats.EAN_8, 
