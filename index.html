@@ -85,7 +85,34 @@
             background: #000;
             width: 100%;
         }
-        #reader { width: 100%; background: #000; }
+        #reader { 
+            width: 100%; 
+            background: #000; 
+            position: relative;
+        }
+        
+        /* خط الليزر لتوجيه الباركود */
+        #reader::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background-color: rgba(255, 0, 0, 0.7);
+            box-shadow: 0 0 4px red;
+            transform: translateY(-50%);
+            z-index: 5;
+            pointer-events: none;
+            animation: scanline 2s infinite linear;
+        }
+
+        @keyframes scanline {
+            0% { top: 35%; }
+            50% { top: 65%; }
+            100% { top: 35%; }
+        }
+
         .close-cam {
             position: absolute;
             top: 10px; left: 10px;
@@ -501,24 +528,39 @@
             }
         }
         
-        // --- إعدادات الكاميرا המدمجة والمستقرة ---
+        // --- إعدادات الكاميرا المدمجة والمستقرة (المعدلة) ---
         let html5QrCode = null;
 
         document.getElementById('start-cam').addEventListener('click', () => {
             const wrapper = document.getElementById('reader-wrapper');
-            wrapper.style.display = 'block'; // إظهار المستطيل المدمج
+            wrapper.style.display = 'block'; 
             
             // منع إعادة تشغيل الكاميرا إذا كانت تعمل بالفعل
             if (html5QrCode && html5QrCode.isScanning) return;
             
             html5QrCode = new Html5Qrcode("reader");
             
-            // إعدادات المسح (تمت إزالة القيود الصارمة للأنواع لضمان قراءة كل الأدوية)
-            // وتم إضافة aspectRatio لمنع تشوه الكاميرا في الأجهزة المختلفة
+            // 1. تحديد صيغ الباركود الخاصة بالأدوية لتسريع المعالجة
+            const formatsToSupport = [
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.EAN_8
+            ];
+
+            // 2. إعدادات المسح الاحترافية
             const config = { 
-                fps: 10, 
-                qrbox: { width: 250, height: 100 },
-                aspectRatio: 1.0 // مهم جداً لمنع التمطييط
+                fps: 20, // زيادة سرعة الإطارات
+                qrbox: { width: 300, height: 80 }, // مستطيل عريض يناسب الباركود الطولي
+                aspectRatio: 1.0,
+                formatsToSupport: formatsToSupport, 
+                useBarCodeDetectorIfSupported: true, // استخدام قارئ الباركود المدمج في الهاتف إن وجد
+                videoConstraints: {
+                    facingMode: "environment",
+                    width: { ideal: 1280, min: 640 }, // طلب دقة HD
+                    height: { ideal: 720, min: 480 },
+                    advanced: [{ focusMode: "continuous" }] // إجبار الكاميرا على التركيز التلقائي
+                }
             };
             
             html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
@@ -539,7 +581,7 @@
             if (html5QrCode) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('reader-wrapper').style.display = 'none';
-                    html5QrCode.clear(); // مسح محتوى الكاميرا بعد الإغلاق
+                    html5QrCode.clear(); 
                 }).catch(err => {
                     document.getElementById('reader-wrapper').style.display = 'none';
                 });
