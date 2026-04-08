@@ -74,20 +74,31 @@
             border-color: var(--primary-green);
         }
 
-        /* --- نافذة الكاميرا --- */
-        #camera-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 2000; display: none; flex-direction: column;
+        #reader-wrapper {
+            display: none;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid var(--primary-blue);
+            position: relative;
+            background: #000;
         }
-        #reader { flex-grow: 1; width: 100%; display: flex; align-items: center; justify-content: center; background: #000; }
-        .cam-header {
-            padding: 15px; background: rgba(0,0,0,0.5); display: flex; justify-content: space-between; align-items: center; position: absolute; top:0; width: 100%; box-sizing: border-box; z-index: 10;
-        }
-        .cam-header span { color: white; font-weight: 600; }
-        .close-cam-btn { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-family: 'Cairo'; font-weight: bold; cursor: pointer; }
+        #reader { width: 100%; background: #000; }
         
-        /* إخفاء شعار مكتبة html5-qrcode */
-        #reader__dashboard_section_csr span, #reader__dashboard_section_csr a { display: none !important; }
+        /* تنسيق فيديو الكاميرا السريعة */
+        #native-video {
+            width: 100%;
+            display: none;
+            object-fit: cover;
+            max-height: 300px;
+        }
+
+        .close-cam {
+            position: absolute;
+            top: 10px; left: 10px;
+            background: rgba(220, 53, 69, 0.8);
+            color: white; border: none; padding: 5px 10px; border-radius: 5px; z-index: 10;
+        }
 
         /* نظام البطاقات */
         #search-results {
@@ -222,15 +233,13 @@
             </button>
         </div>
 
-        <div id="search-results"></div>
-    </div>
-
-    <div id="camera-modal">
-        <div class="cam-header">
-            <span>وجّه الكاميرا نحو الباركود</span>
-            <button class="close-cam-btn" id="stop-cam">إغلاق</button>
+        <div id="reader-wrapper">
+            <button class="close-cam" id="stop-cam">إغلاق X</button>
+            <video id="native-video" autoplay playsinline></video>
+            <div id="reader"></div>
         </div>
-        <div id="reader"></div>
+
+        <div id="search-results"></div>
     </div>
 
     <div id="toast">تم الحفظ بنجاح ✓</div>
@@ -351,6 +360,7 @@
             }
         });
 
+        // دالة البحث المحدثة للتعامل مع المنتجات غير الموجودة
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.trim().toLowerCase();
             if (query.length === 0) { 
@@ -358,8 +368,26 @@
                 loadDefaultInventory();
                 return; 
             }
-            const matches = inventory.filter(i => i.name.toLowerCase().includes(query) || i.barcode.includes(query)).slice(0, 30);
-            renderCards(matches);
+            
+            const matches = inventory.filter(i => (i.name && i.name.toLowerCase().includes(query)) || (i.barcode && i.barcode.toLowerCase().includes(query))).slice(0, 30);
+            
+            if (matches.length > 0) {
+                renderCards(matches);
+            } else {
+                // إذا لم يجد تطابق، وكان النص المدخل طويلاً (مثل الباركود)
+                if (query.length >= 5 && /^[a-zA-Z0-9]+$/.test(query)) {
+                    // فتح بطاقة إضافة مادة جديدة مع تعبئة الباركود تلقائياً
+                    renderCards([{ name: '', barcode: query, form: '', singlesBalance: '0', price: '0', cost: '0', packaging: '1', expirationDate: '' }], true);
+                    
+                    // رسالة تنبيه صغيرة للمستخدم
+                    const infoMsg = document.createElement('div');
+                    infoMsg.style = "text-align:center; color: var(--primary-green); padding: 5px; font-weight:bold; font-size: 0.9rem; margin-bottom: 10px;";
+                    infoMsg.innerText = "المادة غير موجودة بالنظام، يرجى إضافتها.";
+                    resultsDiv.prepend(infoMsg);
+                } else {
+                    resultsDiv.style.display = 'none';
+                }
+            }
         });
 
         function getInitialPackBalance(singles, packaging, form) {
@@ -498,49 +526,122 @@
             }
         }
         
-        // --- إعدادات الكاميرا المستقرة والمركزة على الباركود الخطي ---
-        let html5QrCode = null;
+        // --- إعدادات الكاميرا المحدثة للباركود الخطي (الأدوية) ---
+        const videoElement = document.getElementById('native-video');
+        const readerDiv = document.getElementById('reader');
+        let currentStream = null;
+        let html5QrCode = null; 
 
-        document.getElementById('start-cam').addEventListener('click', () => {
-            document.getElementById('camera-modal').style.display = 'flex';
+        document.getElementById('start-cam').addEventListener('click', async () => {
+            document.getElementById('reader-wrapper').style.display = 'block';
+
+            // إعدادات الكاميرا: طلب دقة عالية لقراءة الخطوط الرفيعة للباركود
+            const videoConstraints = {
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            };
+
+            // 1. محاولة استخدام تقنية BarcodeDetector السريعة
+            if ('BarcodeDetector' in window) {
+                readerDiv.style.display = 'none';
+                videoElement.style.display = 'block';
+
+                try {
+                    currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+                    videoElement.srcObject = currentStream;
+
+                    const barcodeDetector = new BarcodeDetector({ 
+                        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] 
+                    });
+
+                    const detectBarcodeLoop = async () => {
+                        if (!currentStream) return; 
+                        
+                        if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                            try {
+                                const barcodes = await barcodeDetector.detect(videoElement);
+                                if (barcodes.length > 0) {
+                                    const decodedText = barcodes[0].rawValue;
+                                    if (navigator.vibrate) navigator.vibrate(200);
+                                    
+                                    searchInput.value = decodedText;
+                                    searchInput.dispatchEvent(new Event('input')); // سيقوم هذا الحدث بالبحث أو الإضافة التلقائية
+                                    
+                                    closeCamera();
+                                    return; 
+                                }
+                            } catch (e) {
+                                // تجاهل الأخطاء أثناء المسح
+                            }
+                        }
+                        requestAnimationFrame(detectBarcodeLoop);
+                    };
+
+                    videoElement.addEventListener('play', detectBarcodeLoop, { once: true });
+
+                } catch (err) {
+                    console.error("خطأ الكاميرا السريعة، سيتم الانتقال للبديل", err);
+                    useHtml5QrCodeFallback(); // تشغيل البديل إذا فشل الأساسي
+                }
+            } else {
+                // إذا كانت التقنية غير مدعومة أساساً
+                useHtml5QrCodeFallback();
+            }
+        });
+
+        // دالة مكتبة html5-qrcode البديلة
+        function useHtml5QrCodeFallback() {
+            readerDiv.style.display = 'block';
+            videoElement.style.display = 'none';
             
             html5QrCode = new Html5Qrcode("reader");
             
             const config = { 
-                fps: 10, 
-                qrbox: { width: 250, height: 100 },
-                // تحديد أنواع الباركود الخطي الخاص بالأدوية فقط لزيادة السرعة
+                fps: 15, // زيادة السرعة قليلاً
+                // تم إزالة qrbox بالكامل للسماح للكاميرا بقراءة الباركود من الشاشة كاملة (أفضل للباركود العريض)
                 formatsToSupport: [ 
-                    Html5QrcodeSupportedFormats.EAN_13, 
-                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8, 
                     Html5QrcodeSupportedFormats.UPC_A, 
+                    Html5QrcodeSupportedFormats.UPC_E,
                     Html5QrcodeSupportedFormats.CODE_128,
                     Html5QrcodeSupportedFormats.CODE_39
                 ]
             };
-            
-            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                if (navigator.vibrate) navigator.vibrate(200); 
-                stopCamera();
-                searchInput.value = decodedText; 
-                searchInput.dispatchEvent(new Event('input')); 
-            }).catch(err => {
-                alert("يرجى منح صلاحية الكاميرا للمتصفح.");
-                document.getElementById('camera-modal').style.display = 'none';
+
+            html5QrCode.start({ facingMode: "environment" }, config,
+                (decodedText) => {
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    searchInput.value = decodedText;
+                    searchInput.dispatchEvent(new Event('input'));
+                    closeCamera(); 
+                }
+            ).catch(err => {
+                alert("تعذر تشغيل الكاميرا.");
+                closeCamera();
             });
-        });
-
-        document.getElementById('stop-cam').addEventListener('click', stopCamera);
-
-        function stopCamera() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('camera-modal').style.display = 'none';
-                }).catch(err => {
-                    document.getElementById('camera-modal').style.display = 'none';
-                });
-            }
         }
+
+        // دالة موحدة لإغلاق الكاميرا سواء كانت السريعة أو العادية
+        function closeCamera() {
+            // إغلاق الكاميرا السريعة
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            videoElement.srcObject = null;
+            
+            // إغلاق كاميرا المكتبة العادية إن وجدت
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().catch(err => console.error("خطأ في إيقاف المكتبة:", err));
+            }
+            
+            document.getElementById('reader-wrapper').style.display = 'none';
+        }
+
+        // ربط زر (إغلاق X)
+        document.getElementById('stop-cam').addEventListener('click', closeCamera);
 
     </script>
 </body>
