@@ -1,553 +1,93 @@
+```html
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MSL Mobile - التعديل الشامل</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<meta charset="UTF-8">
+<title>قارئ باركود الأدوية</title>
 
-    <style>
-        :root {
-            --primary-blue: #0d6efd;
-            --primary-green: #198754;
-            --bg-main: #f0f4f8;
-            --text-dark: #2c3e50;
-            --border-color: #dee2e6;
-        }
-        body {
-            font-family: 'Cairo', sans-serif;
-            margin: 0; padding: 0;
-            background-color: var(--bg-main);
-            color: var(--text-dark);
-        }
-        .header {
-            background-color: var(--primary-blue);
-            color: white;
-            text-align: center;
-            padding: 15px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .container { padding: 15px; }
+<script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
 
-        /* منطقة البحث والكاميرا */
-        .search-section {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 15px;
-            align-items: center;
-        }
-        .search-wrapper {
-            position: relative;
-            flex-grow: 1;
-        }
-        .search-input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            font-family: 'Cairo', sans-serif;
-            font-size: 1rem;
-            box-sizing: border-box;
-            outline: none;
-        }
-        .search-input:focus { border-color: var(--primary-blue); }
-        
-        .action-btn {
-            background-color: white;
-            border: 2px solid var(--primary-blue);
-            border-radius: 10px;
-            width: 45px;
-            height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-        .btn-add {
-            border-color: var(--primary-green);
-        }
+<style>
+body{
+font-family: Arial;
+text-align:center;
+background:#f4f4f4;
+}
 
-        /* --- تصميم حاوية الكاميرا المدمجة --- */
-        #reader-wrapper {
-            display: none;
-            margin-bottom: 15px;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 2px solid var(--primary-blue);
-            position: relative;
-            background: #000;
-            width: 100%;
-        }
-        #reader { width: 100%; background: #000; }
-        .close-cam {
-            position: absolute;
-            top: 10px; left: 10px;
-            background: rgba(220, 53, 69, 0.9);
-            color: white; border: none; padding: 6px 12px; border-radius: 6px;
-            z-index: 10; font-family: 'Cairo'; font-weight: bold; cursor: pointer;
-        }
-        /* إخفاء شعار مكتبة html5-qrcode */
-        #reader__dashboard_section_csr span, #reader__dashboard_section_csr a { display: none !important; }
+#scanner{
+width:500px;
+margin:auto;
+border:3px solid black;
+}
 
-        /* نظام البطاقات */
-        #search-results {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            margin-bottom: 15px;
-            padding-bottom: 80px;
-        }
-        .result-card {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.06);
-            border: 1px solid var(--border-color);
-            position: relative;
-        }
+#result{
+font-size:25px;
+margin-top:20px;
+color:green;
+font-weight:bold;
+}
+</style>
 
-        /* زر الحفظ في الجانب العلوي الأيسر */
-        .save-btn-top {
-            background-color: var(--primary-green);
-            color: white; 
-            border: none; 
-            border-radius: 6px;
-            padding: 5px 12px; 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center;
-            gap: 5px;
-            cursor: pointer; 
-            font-family: 'Cairo'; 
-            font-weight: bold;
-            font-size: 0.9rem;
-            box-shadow: 0 2px 4px rgba(25, 135, 84, 0.2);
-            transition: transform 0.1s;
-        }
-        .save-btn-top:active {
-            transform: scale(0.95);
-        }
-        .card-header-action {
-            display: flex;
-            justify-content: flex-end; 
-            margin-bottom: 8px;
-        }
-
-        /* تصميم الصفوف */
-        .card-row-top {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1.5fr;
-            gap: 6px;
-            margin-bottom: 10px;
-        }
-        .card-row-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            margin-bottom: 10px;
-        }
-
-        .input-group-inline {
-            display: flex;
-            flex-direction: column;
-        }
-        .input-group-inline label {
-            font-size: 0.7rem;
-            color: #6c757d;
-            margin-bottom: 3px;
-            font-weight: 700;
-        }
-        
-        /* توحيد الارتفاع لجميع الحقول */
-        .inline-input {
-            width: 100%;
-            height: 40px; 
-            padding: 0 6px; 
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-            font-family: 'Cairo';
-            font-weight: bold;
-            font-size: 0.85rem;
-            text-align: center;
-            box-sizing: border-box;
-            background-color: #fdfdfd;
-        }
-        .inline-input:focus {
-            border-color: var(--primary-blue);
-            outline: none;
-            background-color: #eef5ff;
-        }
-        
-        .readonly-input {
-            background-color: #e9ecef;
-            color: #495057;
-            cursor: not-allowed;
-            border: 1px dashed #ced4da;
-            font-size: 0.75rem; 
-        }
-        
-        /* تنسيق خاص لحقل التاريخ لمنع تداخل الاتجاهات */
-        .date-input {
-            direction: ltr; 
-            text-align: center;
-            position: relative;
-            font-size: 0.8rem;
-        }
-
-        #toast {
-            visibility: hidden; min-width: 200px; background-color: var(--primary-green);
-            color: #fff; text-align: center; border-radius: 50px; padding: 10px;
-            position: fixed; z-index: 1000; left: 50%; bottom: 30px;
-            transform: translateX(-50%); opacity: 0; transition: 0.3s;
-        }
-        #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
-        #status-bar { font-size: 0.75rem; text-align: center; padding: 5px; background: #e9ecef; }
-    </style>
 </head>
+
 <body>
 
-    <div class="header">نظام MSL - الإدارة السريعة</div>
-    <div id="status-bar">جاري التحميل...</div>
+<h2>قارئ باركود علب الأدوية</h2>
 
-    <div class="container">
-        <div class="search-section">
-            <div class="search-wrapper">
-                <input type="text" id="main-search" class="search-input" placeholder="ابحث بالاسم أو الباركود...">
-            </div>
-            <button class="action-btn btn-add" id="add-new-btn" title="إضافة مادة جديدة" onclick="showAddNewCard()">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#198754" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-            <button class="action-btn" id="start-cam">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
-        </div>
+<div id="scanner"></div>
 
-        <div id="reader-wrapper">
-            <button class="close-cam" id="stop-cam">إغلاق X</button>
-            <div id="reader"></div>
-        </div>
+<div id="result">لم يتم قراءة باركود بعد</div>
 
-        <div id="search-results"></div>
-    </div>
+<button onclick="startScanner()">تشغيل الكاميرا</button>
 
-    <div id="toast">تم الحفظ بنجاح ✓</div>
+<script>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBz3BsqbCFZWdkWJUrcSs2fUedToE9ONnY",
-            authDomain: "msl-version-1.firebaseapp.com",
-            databaseURL: "https://msl-version-1-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "msl-version-1",
-            storageBucket: "msl-version-1.firebasestorage.app",
-            messagingSenderId: "744911437593",
-            appId: "1:744911437593:web:a4d5d6e9f57395dc700f88",
-            measurementId: "G-RDVXBXWQPQ"
-        };
+function startScanner(){
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        db.enablePersistence().catch(() => {});
+Quagga.init({
 
-        let inventory = [];
-        let displayLimit = 20; 
+inputStream : {
+name : "Live",
+type : "LiveStream",
+target: document.querySelector('#scanner'),
+constraints: {
+facingMode: "environment"
+}
+},
 
-        document.addEventListener('focusin', (e) => {
-            if (e.target && e.target.tagName === 'INPUT' && typeof e.target.select === 'function') {
-                setTimeout(() => {
-                    e.target.select();
-                }, 10);
-            }
-        });
+decoder : {
+readers : [
+"code_128_reader",
+"ean_reader",
+"ean_8_reader",
+"code_39_reader",
+"upc_reader"
+]
+}
 
-        function formatNum(val) {
-            if (!val && val !== 0) return '0';
-            let parts = val.toString().replace(/,/g, '').split('.');
-            parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
-            return parts.join('.');
-        }
+}, function(err){
 
-        window.onNumberInput = function(el) {
-            let val = el.value.replace(/[^0-9.]/g, '');
-            if(val) {
-                let parts = val.split('.');
-                parts[0] = parseInt(parts[0], 10).toLocaleString('en-US');
-                el.value = parts.join('.');
-            }
-        };
+if(err){
+console.log(err);
+return;
+}
 
-        window.calculatePackBalance = function(safeId) {
-            const singles = parseInt(document.getElementById(`bal-${safeId}`).value.replace(/,/g, '')) || 0;
-            const packaging = parseInt(document.getElementById(`pkg-${safeId}`).value.replace(/,/g, '')) || 1;
-            const form = document.getElementById(`form-${safeId}`).value || 'قطعة';
-            
-            const packBalEl = document.getElementById(`packbal-${safeId}`);
-            
-            if (packaging === 1) {
-                packBalEl.value = `${singles} ${form}`;
-            } else {
-                const packs = Math.floor(singles / packaging);
-                const remaining = singles % packaging;
-                packBalEl.value = `${packs} باكيت و ${remaining} شريط`;
-            }
-        };
+Quagga.start();
 
-        function formatDateForInput(dateStr) {
-            if (!dateStr) return '';
-            const parts = dateStr.split('-');
-            if (parts.length === 3 && parts[2].length === 4) { 
-                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            }
-            return dateStr;
-        }
+});
 
-        function formatDateForSave(dateStr) {
-            if (!dateStr) return '';
-            const parts = dateStr.split('-');
-            if (parts.length === 3 && parts[0].length === 4) { 
-                return `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
-            return dateStr;
-        }
+Quagga.onDetected(function(data){
 
-        db.collection('pos_data').doc('inventory').onSnapshot((doc) => {
-            if (doc.exists) {
-                inventory = JSON.parse(doc.data().jsonData);
-                updateStatus();
-                
-                if(searchInput.value.trim() === '') {
-                    displayLimit = 20; 
-                    loadDefaultInventory();
-                }
-            }
-        });
+document.getElementById("result").innerHTML =
+"Barcode : " + data.codeResult.code;
 
-        function updateStatus() {
-            const sb = document.getElementById('status-bar');
-            sb.innerHTML = navigator.onLine ? `متصل ☁️ (${inventory.length} مادة)` : `يعمل محلياً ⏳`;
-        }
+});
 
-        const searchInput = document.getElementById('main-search');
-        const resultsDiv = document.getElementById('search-results');
+}
 
-        function loadDefaultInventory() {
-            if (inventory.length === 0) {
-                resultsDiv.style.display = 'none';
-                return;
-            }
-            renderCards(inventory.slice(0, displayLimit));
-        }
+</script>
 
-        window.addEventListener('scroll', () => {
-            if (searchInput.value.trim() !== '') return; 
-            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
-                if (displayLimit < inventory.length) {
-                    displayLimit += 20; 
-                    loadDefaultInventory();
-                }
-            }
-        });
-
-        searchInput.addEventListener('input', () => {
-            const query = searchInput.value.trim().toLowerCase();
-            if (query.length === 0) { 
-                displayLimit = 20;
-                loadDefaultInventory();
-                return; 
-            }
-            const matches = inventory.filter(i => i.name.toLowerCase().includes(query) || i.barcode.includes(query)).slice(0, 30);
-            renderCards(matches);
-        });
-
-        function getInitialPackBalance(singles, packaging, form) {
-            let s = parseInt(String(singles).replace(/,/g, '')) || 0;
-            let p = parseInt(String(packaging).replace(/,/g, '')) || 1;
-            let f = form || 'قطعة';
-            if (p === 1) return `${s} ${f}`;
-            let packs = Math.floor(s / p);
-            let remain = s % p;
-            return `${packs} باكيت و ${remain} شريط`;
-        }
-
-        function renderCards(items, isNewMode = false) {
-            resultsDiv.innerHTML = '';
-            if (items.length === 0 && !isNewMode) { resultsDiv.style.display = 'none'; return; }
-            
-            items.forEach((item, index) => {
-                const safeId = 'id' + Math.random().toString(36).substr(2, 9);
-                const packBalText = getInitialPackBalance(item.singlesBalance, item.packaging, item.form);
-
-                const card = document.createElement('div');
-                card.className = 'result-card';
-                card.innerHTML = `
-                    <div class="card-header-action">
-                        <button class="save-btn-top" onclick="saveData('${item.barcode}', '${safeId}', ${isNewMode})">
-                            💾 حفظ
-                        </button>
-                    </div>
-                    <div class="card-row-top">
-                        <div class="input-group-inline">
-                            <label>اسم المادة</label>
-                            <input type="text" id="name-${safeId}" class="inline-input" style="text-align: right; color: var(--primary-blue);" value="${item.name || ''}" placeholder="الاسم">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>الشكل</label>
-                            <input type="text" id="form-${safeId}" class="inline-input" value="${item.form || ''}" oninput="calculatePackBalance('${safeId}')" placeholder="الشكل">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>الباركود</label>
-                            <input type="text" id="bar-${safeId}" class="inline-input" style="direction: ltr; font-family: monospace; font-size: 0.8rem;" value="${item.barcode || ''}" placeholder="الباركود">
-                        </div>
-                    </div>
-                    <div class="card-row-3">
-                        <div class="input-group-inline">
-                            <label>التعبئة</label>
-                            <input type="text" inputmode="decimal" id="pkg-${safeId}" class="inline-input" value="${formatNum(item.packaging)}" oninput="onNumberInput(this); calculatePackBalance('${safeId}')">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>مفرد</label>
-                            <input type="text" inputmode="decimal" id="bal-${safeId}" class="inline-input" value="${formatNum(item.singlesBalance)}" oninput="onNumberInput(this); calculatePackBalance('${safeId}')">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>باكيت</label>
-                            <input type="text" id="packbal-${safeId}" class="inline-input readonly-input" value="${packBalText}" readonly tabindex="-1">
-                        </div>
-                    </div>
-                    <div class="card-row-3">
-                        <div class="input-group-inline">
-                            <label>التكلفة</label>
-                            <input type="text" inputmode="decimal" id="cost-${safeId}" class="inline-input" value="${formatNum(item.cost || 0)}" oninput="onNumberInput(this)">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>البيع</label>
-                            <input type="text" inputmode="decimal" id="pri-${safeId}" class="inline-input" value="${formatNum(item.price)}" oninput="onNumberInput(this)">
-                        </div>
-                        <div class="input-group-inline">
-                            <label>النفاذ</label>
-                            <input type="date" id="exp-${safeId}" class="inline-input date-input" value="${formatDateForInput(item.expirationDate)}">
-                        </div>
-                    </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            resultsDiv.style.display = 'flex';
-        }
-
-        function showAddNewCard() {
-            searchInput.value = '';
-            renderCards([{ name: '', barcode: '', form: '', singlesBalance: '0', price: '0', cost: '0', packaging: '1', expirationDate: '' }], true);
-        }
-
-        async function saveData(oldBarcode, safeId, isNew) {
-            const newName = document.getElementById(`name-${safeId}`).value.trim();
-            const newBar = document.getElementById(`bar-${safeId}`).value.trim();
-            const newForm = document.getElementById(`form-${safeId}`).value.trim();
-            const newPkg = document.getElementById(`pkg-${safeId}`).value.replace(/,/g, '');
-            const newBal = document.getElementById(`bal-${safeId}`).value.replace(/,/g, '');
-            const newCost = document.getElementById(`cost-${safeId}`).value.replace(/,/g, '');
-            const newPri = document.getElementById(`pri-${safeId}`).value.replace(/,/g, '');
-            
-            const rawExp = document.getElementById(`exp-${safeId}`).value;
-            const newExp = formatDateForSave(rawExp);
-
-            if (!newName || !newBar) { alert("يرجى إدخال الاسم والباركود على الأقل."); return; }
-
-            const itemObj = {
-                name: newName,
-                barcode: newBar,
-                form: newForm,
-                singlesBalance: String(Number(newBal) || 0),
-                cost: String(Number(newCost) || 0),
-                price: String(Number(newPri) || 0),
-                packaging: String(Number(newPkg) || 1),
-                expirationDate: newExp
-            };
-
-            if (isNew) {
-                itemObj.id = inventory.length > 0 ? Math.max(...inventory.map(i => Number(i.id) || 0)) + 1 : 1;
-                inventory.push(itemObj);
-            } else {
-                const idx = inventory.findIndex(i => i.barcode === oldBarcode);
-                if (idx !== -1) {
-                    itemObj.id = inventory[idx].id;
-                    inventory[idx] = itemObj;
-                }
-            }
-
-            const sb = document.getElementById('status-bar');
-            sb.textContent = 'جاري الحفظ... 🔄';
-
-            try {
-                await db.collection('pos_data').doc('inventory').set({ jsonData: JSON.stringify(inventory) }, { merge: true });
-                document.getElementById('toast').textContent = "تم الحفظ بنجاح ✓";
-                document.getElementById('toast').classList.add('show');
-                setTimeout(() => document.getElementById('toast').classList.remove('show'), 2000);
-                updateStatus();
-                
-                if(isNew) {
-                     displayLimit = 20;
-                     searchInput.value = '';
-                     loadDefaultInventory();
-                }
-            } catch (e) {
-                alert("تم الحفظ محلياً (بانتظار الإنترنت)");
-                updateStatus();
-            }
-        }
-        
-        // --- إعدادات الكاميرا המدمجة والمستقرة ---
-        let html5QrCode = null;
-
-        document.getElementById('start-cam').addEventListener('click', () => {
-            const wrapper = document.getElementById('reader-wrapper');
-            wrapper.style.display = 'block'; // إظهار المستطيل المدمج
-            
-            // منع إعادة تشغيل الكاميرا إذا كانت تعمل بالفعل
-            if (html5QrCode && html5QrCode.isScanning) return;
-            
-            html5QrCode = new Html5Qrcode("reader");
-            
-            // إعدادات المسح (تمت إزالة القيود الصارمة للأنواع لضمان قراءة كل الأدوية)
-            // وتم إضافة aspectRatio لمنع تشوه الكاميرا في الأجهزة المختلفة
-            const config = { 
-                fps: 10, 
-                qrbox: { width: 250, height: 100 },
-                aspectRatio: 1.0 // مهم جداً لمنع التمطييط
-            };
-            
-            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                if (navigator.vibrate) navigator.vibrate(200); 
-                stopCamera();
-                searchInput.value = decodedText; 
-                searchInput.dispatchEvent(new Event('input')); 
-            }).catch(err => {
-                console.error(err);
-                alert("تعذر تشغيل الكاميرا، يرجى إعطاء الصلاحيات للمتصفح.");
-                wrapper.style.display = 'none';
-            });
-        });
-
-        document.getElementById('stop-cam').addEventListener('click', stopCamera);
-
-        function stopCamera() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('reader-wrapper').style.display = 'none';
-                    html5QrCode.clear(); // مسح محتوى الكاميرا بعد الإغلاق
-                }).catch(err => {
-                    document.getElementById('reader-wrapper').style.display = 'none';
-                });
-            } else {
-                document.getElementById('reader-wrapper').style.display = 'none';
-            }
-        }
-
-    </script>
 </body>
+
 </html>
+```
