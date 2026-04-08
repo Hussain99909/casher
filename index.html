@@ -1,240 +1,462 @@
-```html
+
 <!DOCTYPE html>
-<html lang="ar">
-
+<html lang="ar" dir="rtl">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MSL Mobile - جرد الصيدلية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
-<meta charset="UTF-8">
+    <style>
+        :root {
+            --primary: #00b289; /* لون أخضر طبي يشبه تطبيقات الصيدليات */
+            --primary-dark: #00916e;
+            --bg-color: #f4f7f6;
+            --text-dark: #2b3a4a;
+            --text-muted: #7f8c8d;
+            --card-bg: #ffffff;
+            --danger: #ff4757;
+        }
 
-<title>قارئ باركود الأدوية</title>
+        body {
+            font-family: 'Cairo', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            -webkit-tap-highlight-color: transparent;
+        }
 
-<script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
+        /* --- شريط التنقل العلوي --- */
+        .app-bar {
+            background-color: var(--card-bg);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .app-brand {
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            background-color: #ffeaa7;
+            color: #d63031;
+        }
+        .status-badge.connected {
+            background-color: #e3fbed;
+            color: var(--primary-dark);
+        }
 
-<style>
+        /* --- منطقة البحث --- */
+        .search-container {
+            padding: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, var(--bg-color) 100%);
+        }
+        .search-box {
+            display: flex;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #eee;
+            align-items: center;
+        }
+        .search-input {
+            flex-grow: 1;
+            border: none;
+            padding: 12px 15px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 1rem;
+            background: transparent;
+            outline: none;
+            color: var(--text-dark);
+        }
+        .search-input::placeholder { color: #bdc3c7; }
+        .cam-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-left: 5px;
+            transition: transform 0.2s;
+        }
+        .cam-btn:active { transform: scale(0.95); }
 
-body{
-font-family:Tahoma;
-background:#eef2f7;
-text-align:center;
-}
+        /* --- نتائج البحث (البطاقات) --- */
+        .results-container {
+            padding: 0 20px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .product-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+            border: 1px solid #f1f2f6;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .product-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .product-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0;
+            line-height: 1.3;
+        }
+        .product-barcode {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: monospace;
+            background: #f1f2f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .product-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fcfb;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.85rem;
+        }
+        .detail-item span:first-child { color: var(--text-muted); font-size: 0.75rem; }
+        .detail-item span:last-child { font-weight: 700; color: var(--primary-dark); font-size: 1rem; }
+        .edit-btn {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 6px 15px;
+            border-radius: 8px;
+            font-family: 'Cairo';
+            font-weight: 600;
+            cursor: pointer;
+        }
 
-h2{
-color:#2c3e50;
-}
+        /* --- نافذة التعديل المنبثقة من الأسفل (Bottom Sheet) --- */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4); z-index: 999; display: none;
+            backdrop-filter: blur(2px);
+        }
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%;
+            background: var(--card-bg);
+            border-radius: 24px 24px 0 0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            z-index: 1000;
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            padding: 25px 20px 30px 20px;
+            box-sizing: border-box;
+        }
+        .bottom-sheet.active { bottom: 0; }
+        .sheet-handle {
+            width: 40px; height: 5px; background: #dfe4ea;
+            border-radius: 10px; margin: 0 auto 20px auto;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-group label {
+            display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted);
+        }
+        .form-control {
+            width: 100%; padding: 12px 15px;
+            border: 1.5px solid #eee; border-radius: 12px;
+            font-family: 'Cairo', sans-serif; font-size: 1rem; box-sizing: border-box;
+            background-color: #fafbfc; outline: none; transition: border 0.2s;
+        }
+        .form-control:focus { border-color: var(--primary); background-color: #fff; }
+        .action-btns {
+            display: flex; gap: 10px; margin-top: 25px;
+        }
+        .btn-save, .btn-cancel {
+            flex: 1; padding: 14px; border: none; border-radius: 14px;
+            font-family: 'Cairo', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer;
+        }
+        .btn-save { background-color: var(--primary); color: white; box-shadow: 0 4px 10px rgba(0, 178, 137, 0.3); }
+        .btn-cancel { background-color: #f1f2f6; color: var(--text-dark); }
 
-#scanner{
-
-width:500px;
-height:300px;
-margin:auto;
-
-border-radius:10px;
-
-border:4px solid #34495e;
-
-overflow:hidden;
-
-}
-
-button{
-
-padding:10px 20px;
-
-margin:10px;
-
-border:none;
-
-background:#3498db;
-
-color:white;
-
-font-size:16px;
-
-border-radius:5px;
-
-cursor:pointer;
-
-}
-
-button:hover{
-
-background:#2980b9;
-
-}
-
-#result{
-
-font-size:26px;
-
-color:#27ae60;
-
-margin-top:15px;
-
-font-weight:bold;
-
-}
-
-#history{
-
-width:400px;
-
-margin:auto;
-
-background:white;
-
-padding:10px;
-
-border-radius:10px;
-
-box-shadow:0 0 10px rgba(0,0,0,.1);
-
-}
-
-.item{
-
-padding:5px;
-
-border-bottom:1px solid #ddd;
-
-}
-
-</style>
-
+        /* --- نافذة الكاميرا --- */
+        #camera-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 2000; display: none; flex-direction: column;
+        }
+        #reader { flex-grow: 1; width: 100%; display: flex; align-items: center; justify-content: center; }
+        .cam-header {
+            padding: 15px; background: rgba(0,0,0,0.5); display: flex; justify-content: space-between; align-items: center; position: absolute; top:0; width: 100%; box-sizing: border-box; z-index: 10;
+        }
+        .cam-header span { color: white; font-weight: 600; }
+        .close-cam-btn { background: var(--danger); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-family: 'Cairo'; font-weight: bold; }
+        
+        /* إخفاء شعار مكتبة html5-qrcode */
+        #reader__dashboard_section_csr span, #reader__dashboard_section_csr a { display: none !important; }
+    </style>
 </head>
-
 <body>
 
-<h2>قارئ باركود علب الأدوية</h2>
-
-<div id="scanner"></div>
-
-<div id="result">
-
-بانتظار القراءة
-
-</div>
-
-<button onclick="startScanner()">
-
-تشغيل
-
-</button>
-
-<button onclick="stopScanner()">
-
-إيقاف
-
-</button>
-
-<h3>
-
-سجل القراءات
-
-</h3>
-
-<div id="history">
-
-</div>
-
-<audio id="beep">
-
-<source src="https://www.soundjay.com/beep/beep-07.mp3">
-
-</audio>
-
-<script>
-
-let lastCode="";
-
-function startScanner(){
-
-Quagga.init({
-
-inputStream:{
-
-name:"Live",
-
-type:"LiveStream",
-
-target:document.querySelector('#scanner'),
-
-constraints:{
-
-facingMode:"environment"
-
-}
-
-},
-
-decoder:{
-
-readers:[
-
-"ean_reader",
-
-"ean_8_reader",
-
-"code_128_reader",
-
-"upc_reader"
-
-]
-
-},
-
-locate:true
-
-},
-
-function(err){
-
-if(err){
-
-console.log(err);
-
-return;
-
-}
-
-Quagga.start();
-
-});
-
-}
-
-function stopScanner(){
-
-Quagga.stop();
-
-}
-
-Quagga.onDetected(function(data){
-
-let code=data.codeResult.code;
-
-if(code!==lastCode){
-
-lastCode=code;
-
-document.getElementById("result").innerHTML=code;
-
-document.getElementById("beep").play();
-
-let div=document.createElement("div");
-
-div.className="item";
-
-div.innerHTML=code;
-
-document.getElementById("history").prepend(div);
-
-}
-
-});
-
-</script>
-
+    <div class="app-bar">
+        <div class="app-brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11V9a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v2"/><path d="M15 11v6a2 2 0 0 1-2 2H7"/><path d="M19 15v4a2 2 0 0 1-2 2h-4"/><path d="M3 11h18v4H3z"/></svg>
+            MSL 
+        </div>
+        <div id="status-badge" class="status-badge">جاري الاتصال...</div>
+    </div>
+
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text" id="main-search" class="search-input" placeholder="ابحث باسم الدواء أو الباركود...">
+            <button class="cam-btn" id="start-cam">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="results-container" id="results-container">
+        </div>
+
+    <div id="camera-modal">
+        <div class="cam-header">
+            <span>وجّه الكاميرا نحو الباركود</span>
+            <button class="close-cam-btn" id="stop-cam">إغلاق</button>
+        </div>
+        <div id="reader"></div>
+    </div>
+
+    <div class="overlay" id="sheet-overlay"></div>
+    <div class="bottom-sheet" id="edit-sheet">
+        <div class="sheet-handle"></div>
+        <h3 id="display-name" style="margin: 0 0 20px 0; color: var(--primary-dark); font-size: 1.3rem;"></h3>
+        
+        <div class="form-group">
+            <label>الرصيد الحالي (بالمفرد)</label>
+            <input type="number" id="edit-balance" class="form-control" placeholder="أدخل الكمية">
+        </div>
+        <div class="form-group">
+            <label>التعبئة (عدد الأشرطة/القطع بالباكيت)</label>
+            <input type="number" id="edit-packaging" class="form-control">
+        </div>
+        <div class="form-group">
+            <label>سعر البيع (دينار عراقي)</label>
+            <input type="number" id="edit-price" class="form-control" placeholder="0">
+        </div>
+        
+        <div class="action-btns">
+            <button class="btn-cancel" onclick="closeSheet()">إلغاء</button>
+            <button class="btn-save" onclick="saveToCloud()">حفظ التعديل</button>
+        </div>
+    </div>
+
+    <script>
+        // إعدادات Firebase الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyBz3BsqbCFZWdkWJUrcSs2fUedToE9ONnY",
+            authDomain: "msl-version-1.firebaseapp.com",
+            databaseURL: "https://msl-version-1-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "msl-version-1",
+            storageBucket: "msl-version-1.firebasestorage.app",
+            messagingSenderId: "744911437593",
+            appId: "1:744911437593:web:a4d5d6e9f57395dc700f88",
+            measurementId: "G-RDVXBXWQPQ"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        
+        let inventory = [];
+        let currentItemIndex = -1;
+        let html5QrCode = null;
+
+        // الاتصال اللحظي بـ Firebase
+        db.collection('pos_data').doc('inventory').onSnapshot((doc) => {
+            if (doc.exists) {
+                inventory = JSON.parse(doc.data().jsonData);
+                const badge = document.getElementById('status-badge');
+                badge.innerHTML = 'متصل السحابة';
+                badge.classList.add('connected');
+                
+                // تحديث نتائج البحث إذا كان المستخدم يبحث حالياً
+                triggerSearch();
+            }
+        });
+
+        // دوال البحث وعرض البطاقات
+        const searchInput = document.getElementById('main-search');
+        const resultsContainer = document.getElementById('results-container');
+
+        searchInput.addEventListener('input', triggerSearch);
+
+        function triggerSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+            resultsContainer.innerHTML = '';
+            
+            if (query.length === 0) return;
+
+            const matches = inventory.filter(item => 
+                item.name.toLowerCase().includes(query) || item.barcode.includes(query)
+            ).slice(0, 15); // عرض أول 15 نتيجة كحد أقصى للحفاظ على الأداء
+
+            if (matches.length > 0) {
+                matches.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'product-card';
+                    card.innerHTML = `
+                        <div class="product-header">
+                            <div>
+                                <h3 class="product-name">${item.name}</h3>
+                                <span class="product-barcode">${item.barcode}</span>
+                            </div>
+                            <button class="edit-btn" onclick="openSheet('${item.barcode}')">تعديل</button>
+                        </div>
+                        <div class="product-details">
+                            <div class="detail-item">
+                                <span>الرصيد المتبقي</span>
+                                <span>${item.singlesBalance}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span>التعبئة</span>
+                                <span>${item.packaging || 1}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span>السعر</span>
+                                <span>${Number(item.price).toLocaleString()} د.ع</span>
+                            </div>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(card);
+                });
+            } else {
+                resultsContainer.innerHTML = `
+                    <div style="text-align:center; padding: 40px; color: #7f8c8d;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:10px; opacity:0.5;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <br>لم يتم العثور على الدواء
+                    </div>`;
+            }
+        }
+
+        // دوال نافذة التعديل (Bottom Sheet)
+        const sheet = document.getElementById('edit-sheet');
+        const overlay = document.getElementById('sheet-overlay');
+
+        function openSheet(barcode) {
+            const index = inventory.findIndex(i => i.barcode === barcode);
+            if(index === -1) return;
+            
+            currentItemIndex = index;
+            const item = inventory[index];
+            
+            document.getElementById('display-name').textContent = item.name;
+            document.getElementById('edit-balance').value = item.singlesBalance;
+            document.getElementById('edit-packaging').value = item.packaging || 1;
+            document.getElementById('edit-price').value = item.price;
+            
+            overlay.style.display = 'block';
+            setTimeout(() => { sheet.classList.add('active'); }, 10);
+        }
+
+        function closeSheet() {
+            sheet.classList.remove('active');
+            setTimeout(() => { overlay.style.display = 'none'; }, 300);
+            currentItemIndex = -1;
+        }
+
+        overlay.addEventListener('click', closeSheet);
+
+        // حفظ البيانات في السحابة
+        async function saveToCloud() {
+            if (currentItemIndex === -1) return;
+
+            const btnSave = document.querySelector('.btn-save');
+            const originalText = btnSave.textContent;
+            btnSave.textContent = 'جاري الحفظ...';
+            btnSave.disabled = true;
+
+            inventory[currentItemIndex].singlesBalance = document.getElementById('edit-balance').value;
+            inventory[currentItemIndex].packaging = document.getElementById('edit-packaging').value;
+            inventory[currentItemIndex].price = document.getElementById('edit-price').value;
+
+            try {
+                await db.collection('pos_data').doc('inventory').set({
+                    jsonData: JSON.stringify(inventory)
+                });
+                closeSheet();
+                // سيتم التحديث التلقائي للبطاقات عبر onSnapshot
+            } catch (e) {
+                alert('حدث خطأ أثناء الاتصال بالسحابة: ' + e.message);
+            } finally {
+                btnSave.textContent = originalText;
+                btnSave.disabled = false;
+            }
+        }
+
+        // دوال الكاميرا والمسح الضوئي
+        document.getElementById('start-cam').addEventListener('click', () => {
+            document.getElementById('camera-modal').style.display = 'flex';
+            
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 100 } };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
+                stopCamera();
+                searchInput.value = decodedText; // وضع الباركود في مستطيل البحث
+                triggerSearch(); // تشغيل البحث للعثور على البطاقة
+                
+                // فتح نافذة التعديل تلقائياً إذا وجد المادة
+                setTimeout(() => {
+                    const idx = inventory.findIndex(i => i.barcode === decodedText);
+                    if (idx > -1) openSheet(decodedText);
+                    else alert('الدواء غير مسجل في النظام!');
+                }, 300);
+            }).catch(err => {
+                alert("يرجى منح صلاحية الكاميرا للمتصفح.");
+                document.getElementById('camera-modal').style.display = 'none';
+            });
+        });
+
+        document.getElementById('stop-cam').addEventListener('click', stopCamera);
+
+        function stopCamera() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('camera-modal').style.display = 'none';
+                }).catch(err => {
+                    document.getElementById('camera-modal').style.display = 'none';
+                });
+            }
+        }
+    </script>
 </body>
-
 </html>
-```
